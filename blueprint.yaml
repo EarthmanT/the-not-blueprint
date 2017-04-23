@@ -8,3 +8,8 @@ node_templates:
 
   not_a_node_template:
     type: cloudify.nodes.Root
+
+outputs:
+  key:
+    description: not here
+    value: "not reals"
