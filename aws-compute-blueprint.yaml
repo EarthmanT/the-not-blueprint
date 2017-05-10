@@ -1,0 +1,108 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.0/types.yaml
+  - http://getcloudify.org.s3.amazonaws.com/spec/aws-plugin/1.4.7/plugin.yaml
+
+inputs:
+
+  key_name:
+    default: nip-compute000
+
+  private_key_path:
+    default: ~/.ssh/nip-compute000.pem
+
+  vpc_id:
+    type: string
+
+  subnet_id:
+    type: string
+
+  ec2_region_name:
+    default: eu-west-1
+
+  ec2_region_endpoint:
+    default: ec2.eu-west-1.amazonaws.com
+
+  ami:
+    description: >
+      Amazon Ubuntu 14.04 AMI
+    default: ami-09447c6f
+
+  instance_type:
+    description: >
+      Agent VM Instance Type
+    default: t2.micro
+
+  agent_user:
+    default: ubuntu
+
+dsl_definitions:
+
+    aws_config: &aws_config
+      aws_access_key_id: { get_secret: aws_access_key_id }
+      aws_secret_access_key: { get_secret: aws_secret_access_key }
+      ec2_region_name: { get_input: ec2_region_name }
+      ec2_region_endpoint: { get_input: ec2_region_endpoint }
+
+node_templates:
+
+  host:
+    type: cloudify.aws.nodes.Instance
+    properties:
+      agent_config:
+        install_method: remote
+        port: 22
+        user: { get_input: agent_user }
+        key: { get_property: [ key, private_key_path ] }
+      aws_config: *aws_config
+      image_id: { get_input: ami }
+      instance_type: { get_input: instance_type }
+    relationships:
+      - type: cloudify.aws.relationships.instance_connected_to_keypair
+        target: key
+      - type: cloudify.aws.relationships.instance_connected_to_subnet
+        target: subnet
+      - type: cloudify.aws.relationships.instance_connected_to_security_group
+        target: ssh
+
+  ssh:
+    type: cloudify.aws.nodes.SecurityGroup
+    properties:
+      aws_config: *aws_config
+      description: SSH Group
+      rules:
+        - ip_protocol: tcp
+          from_port: 0
+          to_port: 65535
+          cidr_ip: 0.0.0.0/0
+    relationships:
+      - type: cloudify.aws.relationships.security_group_contained_in_vpc
+        target: vpc
+
+  subnet:
+    type: cloudify.aws.nodes.Subnet
+    properties:
+      aws_config: *aws_config
+      use_external_resource: true
+      resource_id: { get_input: subnet_id }
+      cidr_block: N/A
+      availability_zone: N/A
+    relationships:
+      - type: cloudify.aws.relationships.subnet_contained_in_vpc
+        target: vpc
+
+  vpc:
+    type: cloudify.aws.nodes.VPC
+    properties:
+      aws_config: *aws_config
+      use_external_resource: true
+      resource_id: { get_input: vpc_id }
+      cidr_block: N/A
+
+  key:
+    type: cloudify.aws.nodes.KeyPair
+    properties:
+      aws_config: *aws_config
+      resource_id: { get_input: key_name }
+      private_key_path: { get_input: private_key_path }
