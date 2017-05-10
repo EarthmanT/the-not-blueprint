@@ -8,6 +8,9 @@ node_templates:
 
   not_a_node_template:
     type: cloudify.nodes.Root
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure: configure.sh
 
 outputs:
   key:
